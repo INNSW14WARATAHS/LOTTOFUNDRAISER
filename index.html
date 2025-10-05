@@ -24,7 +24,22 @@
     .btn{background:#3b82f6;color:#fff}
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
-    #paypalButtons{margin-top:10px;display:flex;justify-content:center}
+    /* Loading/progress style for the lock button */
+    .btn.loading{position:relative;opacity:.7;cursor:wait}
+    .btn.loading::after{
+      content:"";
+      position:absolute;left:6px;right:6px;bottom:-6px;height:4px;
+      background:rgba(255,255,255,.25);border-radius:999px;overflow:hidden;
+    }
+    .btn.loading::before{
+      content:"";
+      position:absolute;left:6px;bottom:-6px;height:4px;width:30%;
+      background:#10b981;border-radius:999px;
+      animation:loadbar 1.2s infinite ease-in-out;
+    }
+    @keyframes loadbar { 0%{left:6px;width:20%} 50%{left:50%;width:40%} 100%{left:calc(100% - 30% - 6px);width:30%} }
+    #paypalWrap{display:flex;justify-content:center;margin-top:10px}
+    #paypalButtons{min-height:45px} /* reserve space so layout doesn't jump */
   </style>
 </head>
 <body>
@@ -49,15 +64,16 @@
     <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
   </div>
 
-  <div id="board" class="grid">Loading numbers…</div>
+  <!-- PayPal buttons now appear RIGHT HERE, under the lock button -->
+  <div id="paypalWrap"><div id="paypalButtons"></div></div>
 
+  <!-- Summary and grid come after -->
   <p id="summary" class="note"></p>
-
-  <div id="paypalButtons"></div>
+  <div id="board" class="grid">Loading numbers…</div>
 </main>
 
 <script>
-  // 3) Put your latest Web App /exec URL here:
+  // Replace with your latest Web App /exec URL:
   const APP = "https://script.google.com/macros/s/AKfycbxG7ttHVGL_NyjoDUMHxR3AM7q3dOA01pp66SawLtQiCi5b-KSsleBhfBCA6nzhJ_K5sg/exec";
 
   const board = document.getElementById('board');
@@ -91,7 +107,7 @@
       d.className = 'cell' + (n.status==='available' ? '' : ' unavailable');
       d.textContent = n.num;
       if (n.status==='available'){
-        d.onclick = ()=>{ if (holdId) return; // locked already
+        d.onclick = ()=>{ if (holdId) return; // already locked -> don't change
           if (selected.has(n.num)) selected.delete(n.num); else selected.add(n.num);
           d.classList.toggle('selected'); updateSummary();
         };
@@ -104,26 +120,42 @@
   clearBtn.onclick = async ()=>{
     selected.clear(); holdId=null; paypalButtonsDiv.innerHTML='';
     await loadState();
+    window.scrollTo({top:0,behavior:'smooth'});
   };
 
-  lockBtn.onclick = async ()=>{
-    if (holdId) return alert('Numbers already locked — continue to PayPal below.');
+  // Util: run an async job with button loading state
+  async function withLoading(btn, task){
+    btn.disabled = true;
+    btn.classList.add('loading');
+    const oldText = btn.textContent;
+    btn.textContent = 'Locking...';
+    try { return await task(); }
+    finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.textContent = oldText;
+    }
+  }
+
+  document.getElementById('lockBtn').onclick = ()=> withLoading(lockBtn, async ()=>{
+    if (holdId) { document.getElementById('paypalButtons').scrollIntoView({behavior:'smooth'}); return; }
     const name = document.getElementById('name').value.trim();
     const email= document.getElementById('email').value.trim();
     const phone= document.getElementById('phone').value.trim();
     const numbers = [...selected];
 
     if (!numbers.length) return alert('Please select at least one number.');
-    if (!name || !email) return alert('Please enter your name and email.');
+    if (!name || !email)  return alert('Please enter your name and email.');
 
     const res = await fetch(APP+'?path=reserve',{ method:'POST', body: JSON.stringify({ name, email, phone, numbers }) });
     const jr = await res.json();
-    if (!jr.ok) return alert(jr.error || 'Could not lock your numbers. Try again.');
+    if (!jr.ok) { alert(jr.error || 'Could not lock your numbers. Try again.'); return; }
 
     holdId = jr.hold_id;
-    await loadState();          // refresh to show numbers as HELD with your details
-    renderPayPalButtons();      // now show PayPal
-  };
+    await loadState();          // refresh to show HELD
+    await renderPayPalButtons();// reveal PayPal right under the lock button
+    document.getElementById('paypalButtons').scrollIntoView({behavior:'smooth'});
+  });
 
   async function createPayPalOrder(){
     const r = await fetch(APP+'?path=paypal_order',{ method:'POST', body: JSON.stringify({ hold_id: holdId }) });
@@ -139,26 +171,32 @@
 
   async function renderPayPalButtons(){
     paypalButtonsDiv.innerHTML = '';
-    // Load PayPal SDK using client id from backend (SANDBOX for testing)
+    // Load PayPal SDK using client id from backend (works in sandbox)
     const script = document.createElement('script');
     script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(STATE.paypal_client_id)}&currency=${(STATE.currency||'AUD')}`;
-    script.onload = () => {
-      // eslint-disable-next-line no-undef
-      paypal.Buttons({
-        createOrder: async ()=> await createPayPalOrder(),
-        onApprove: async (d)=> {
-          const jr = await capturePayPalOrder(d.orderID);
-          if (jr.status === 'COMPLETED'){
-            alert('Payment successful — your numbers are confirmed. Thank you!');
-            holdId = null; selected.clear(); await loadState();
-          } else {
-            alert('Payment not completed. You can try again.');
-          }
-        },
-        onError: (err)=>{ console.error(err); alert('PayPal error — please try again.'); }
-      }).render('#paypalButtons');
-    };
-    document.body.appendChild(script);
+    return new Promise((resolve,reject)=>{
+      script.onload = () => {
+        // eslint-disable-next-line no-undef
+        paypal.Buttons({
+          createOrder: async ()=> await createPayPalOrder(),
+          onApprove: async (d)=> {
+            const jr = await capturePayPalOrder(d.orderID);
+            if (jr.status === 'COMPLETED'){
+              alert('Payment successful — your numbers are confirmed. Thank you!');
+              holdId = null; selected.clear(); await loadState();
+              paypalButtonsDiv.innerHTML = '';
+              window.scrollTo({top:0,behavior:'smooth'});
+            } else {
+              alert('Payment not completed. You can try again.');
+            }
+          },
+          onError: (err)=>{ console.error(err); alert('PayPal error — please try again.'); }
+        }).render('#paypalButtons');
+        resolve();
+      };
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
   }
 
   loadState();
