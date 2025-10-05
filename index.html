@@ -1,43 +1,178 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>INNSW 14 WARATAHS — Lotto Board</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://www.paypal.com/sdk/js?client-id=sb&currency=AUD"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</title>
+
+  <!-- Google Fonts for Poppins -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(135deg, #0b355b, #103b6e);
+      color: white;
+      text-align: center;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: #0a2e56;
+    }
+
+    header img {
+      height: 90px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+
+    h2 {
+      font-weight: 400;
+      font-size: 1rem;
+      opacity: 0.85;
+      margin: 8px 0 0;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 10px;
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 10px;
+    }
+
+    .num {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #1d4ed8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: 0.2s;
+      user-select: none;
+    }
+
+    .num:hover {
+      background: #2563eb;
+      transform: scale(1.05);
+    }
+
+    .num.selected {
+      background: #10b981;
+      color: white;
+    }
+
+    .num.unavailable {
+      background: #6b7280;
+      color: #ccc;
+      cursor: not-allowed;
+    }
+
+    #actions {
+      margin: 20px 0;
+    }
+
+    button {
+      background: #3b82f6;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      padding: 10px 20px;
+      border-radius: 10px;
+      margin: 0 5px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #2563eb;
+    }
+
+    footer {
+      margin: 40px 0;
+      opacity: 0.8;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <header class="hero">
-      <img src="mascot.png" class="logo-left" alt="mascot" />
-      <div class="titles">
-        <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
-        <p class="sub">$10 per number · pick one or more (1–300)</p>
-      </div>
-      <img src="isnsw.png" class="logo-right" alt="ISNSW" />
-    </header>
-
-    <div id="messages"></div>
-
-    <div id="grid" class="grid"></div>
-
-    <div class="toolbar">
-      <button id="clearBtn" class="btn ghost">Clear</button>
-      <button id="holdBtn" class="btn primary">Hold Selection</button>
+  <header>
+    <img src="mascot.png" alt="Mascot">
+    <div>
+      <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
+      <h2>$10 per number · pick one or more (1–300)</h2>
     </div>
-    <div id="summary" class="summary">No numbers selected yet.</div>
+    <img src="isnsw-redo.png" alt="Logo">
+  </header>
 
-    <section id="checkout" class="checkout hidden">
-      <h3>Checkout</h3>
-      <div class="payrow">
-        <button id="stripeBtn" class="btn primary">Pay with Stripe</button>
-        <div id="paypalButtons"></div>
-      </div>
-      <p class="note">Your numbers are reserved for <span id="holdMinutes">10</span> minutes while you pay.</p>
-    </section>
-  </div>
-  <script>window.APP_SCRIPT = 'https://script.google.com/macros/s/AKfycbwcJhR-_2PoQvFxiWzg3hLjVEE57dimTx7mZ7p4W6BvfpWpfjHAwuvz9vtF0ilFryxm2A/exec';</script>
-  <script src="app.js"></script>
+  <main>
+    <div id="actions">
+      <button id="clearBtn">Clear</button>
+      <button id="holdBtn">Hold Selection</button>
+    </div>
+    <div id="board">Loading numbers...</div>
+  </main>
+
+  <footer>Powered by Google Sheets + Apps Script · © 2025 INNSW Fundraiser</footer>
+
+  <script>
+    // --- connect to your working Apps Script ---
+    const APP_SCRIPT = "https://script.google.com/macros/s/AKfycbw4KgPWqGHo5shvpsv9KmeHVWt8kzOKoMnJ8adAmyloBMNqEkwQap0IhqjhEUeq2f8YMw/exec";
+    const board = document.getElementById("board");
+    let selected = [];
+
+    async function loadNumbers() {
+      board.textContent = "Loading numbers...";
+      const res = await fetch(APP_SCRIPT + "?path=state");
+      const data = await res.json();
+      board.innerHTML = "";
+      data.numbers.forEach(n => {
+        const div = document.createElement("div");
+        div.className = "num" + (n.status !== "available" ? " unavailable" : "");
+        div.textContent = n.num;
+        if (n.status === "available") {
+          div.onclick = () => toggleNumber(div, n.num);
+        }
+        board.appendChild(div);
+      });
+    }
+
+    function toggleNumber(el, num) {
+      if (el.classList.contains("selected")) {
+        el.classList.remove("selected");
+        selected = selected.filter(n => n !== num);
+      } else {
+        el.classList.add("selected");
+        selected.push(num);
+      }
+      console.log("Selected:", selected);
+    }
+
+    document.getElementById("clearBtn").onclick = () => {
+      document.querySelectorAll(".num.selected").forEach(el => el.classList.remove("selected"));
+      selected = [];
+    };
+
+    document.getElementById("holdBtn").onclick = () => {
+      if (!selected.length) return alert("Please select at least one number.");
+      alert("You selected numbers: " + selected.join(", ") + "\n(Checkout integration coming soon)");
+    };
+
+    loadNumbers();
+  </script>
 </body>
 </html>
