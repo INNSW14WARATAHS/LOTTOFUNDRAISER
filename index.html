@@ -17,14 +17,14 @@
     .cell:hover{transform:scale(1.05);background:#2563eb}
     .cell.unavailable{background:#6b7280;color:#cbd5e1;cursor:not-allowed}
     .cell.selected{outline:3px solid #10b981}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:10px 0}
     input,button{font-family:inherit}
-    input{padding:10px 12px;border-radius:10px;border:1px solid #2b5b92;background:#0f2d54;color:#fff}
+    input{padding:10px 12px;border-radius:10px;border:1px solid #2b5b92;background:#0f2d54;color:#fff;min-width:220px;text-align:center}
     button{padding:10px 16px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
     .btn{background:#3b82f6;color:#fff}
     .btn.secondary{background:#1f3d66}
-    .note{opacity:.9}
-    #paypalButtons{margin-top:10px}
+    .note{opacity:.9;text-align:center}
+    #paypalButtons{margin-top:10px;display:flex;justify-content:center}
   </style>
 </head>
 <body>
@@ -42,25 +42,28 @@
     <input id="name"  placeholder="Your name"  required>
     <input id="email" placeholder="Email (receipt)" required type="email">
     <input id="phone" placeholder="Phone (optional)">
-    <button id="clearBtn" class="btn secondary">Clear</button>
+  </div>
+
+  <div class="row">
+    <button id="clearBtn" class="btn secondary">Clear Selection</button>
+    <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
   </div>
 
   <div id="board" class="grid">Loading numbers…</div>
 
-  <div class="row">
-    <button id="reserveBtn" class="btn">Reserve & Pay via PayPal (Sandbox)</button>
-    <span id="summary" class="note"></span>
-  </div>
+  <p id="summary" class="note"></p>
 
   <div id="paypalButtons"></div>
 </main>
 
 <script>
-  const APP = "https://script.google.com/macros/s/AKfycbwzvSzabYV2y3pf9nGfK2wttRgxWTSjMVgFZ2qPlIeysEvBO_1RAjfGE638Elv37GJ3GQ/exec"; // ← replace after you deploy
+  // 3) Put your latest Web App /exec URL here:
+  const APP = "https://script.google.com/macros/s/AKfycbxG7ttHVGL_NyjoDUMHxR3AM7q3dOA01pp66SawLtQiCi5b-KSsleBhfBCA6nzhJ_K5sg/exec";
+
   const board = document.getElementById('board');
-  const summary = document.getElementById('summary');
-  const reserveBtn = document.getElementById('reserveBtn');
+  const lockBtn = document.getElementById('lockBtn');
   const clearBtn = document.getElementById('clearBtn');
+  const summary = document.getElementById('summary');
   const paypalButtonsDiv = document.getElementById('paypalButtons');
 
   let STATE = null;
@@ -88,7 +91,7 @@
       d.className = 'cell' + (n.status==='available' ? '' : ' unavailable');
       d.textContent = n.num;
       if (n.status==='available'){
-        d.onclick = ()=>{ if (holdId) return;
+        d.onclick = ()=>{ if (holdId) return; // locked already
           if (selected.has(n.num)) selected.delete(n.num); else selected.add(n.num);
           d.classList.toggle('selected'); updateSummary();
         };
@@ -103,8 +106,8 @@
     await loadState();
   };
 
-  reserveBtn.onclick = async ()=>{
-    if (holdId) return alert('You already have a pending hold — complete or clear first.');
+  lockBtn.onclick = async ()=>{
+    if (holdId) return alert('Numbers already locked — continue to PayPal below.');
     const name = document.getElementById('name').value.trim();
     const email= document.getElementById('email').value.trim();
     const phone= document.getElementById('phone').value.trim();
@@ -115,11 +118,11 @@
 
     const res = await fetch(APP+'?path=reserve',{ method:'POST', body: JSON.stringify({ name, email, phone, numbers }) });
     const jr = await res.json();
-    if (!jr.ok) return alert(jr.error || 'Could not reserve');
+    if (!jr.ok) return alert(jr.error || 'Could not lock your numbers. Try again.');
 
     holdId = jr.hold_id;
-    await loadState();
-    renderPayPalButtons(); // show sandbox checkout
+    await loadState();          // refresh to show numbers as HELD with your details
+    renderPayPalButtons();      // now show PayPal
   };
 
   async function createPayPalOrder(){
@@ -136,7 +139,7 @@
 
   async function renderPayPalButtons(){
     paypalButtonsDiv.innerHTML = '';
-    // Load PayPal SDK using your sandbox client id from backend
+    // Load PayPal SDK using client id from backend (SANDBOX for testing)
     const script = document.createElement('script');
     script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(STATE.paypal_client_id)}&currency=${(STATE.currency||'AUD')}`;
     script.onload = () => {
@@ -146,7 +149,7 @@
         onApprove: async (d)=> {
           const jr = await capturePayPalOrder(d.orderID);
           if (jr.status === 'COMPLETED'){
-            alert('Sandbox payment successful — your numbers are confirmed.');
+            alert('Payment successful — your numbers are confirmed. Thank you!');
             holdId = null; selected.clear(); await loadState();
           } else {
             alert('Payment not completed. You can try again.');
