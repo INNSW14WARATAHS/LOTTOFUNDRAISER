@@ -1,178 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</title>
-
-  <!-- Google Fonts for Poppins -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-
   <style>
-    body {
-      margin: 0;
-      font-family: "Poppins", sans-serif;
-      background: linear-gradient(135deg, #0b355b, #103b6e);
-      color: white;
-      text-align: center;
-      min-height: 100vh;
-    }
-
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px;
-      background: #0a2e56;
-    }
-
-    header img {
-      height: 90px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 1.8rem;
-      font-weight: 700;
-    }
-
-    h2 {
-      font-weight: 400;
-      font-size: 1rem;
-      opacity: 0.85;
-      margin: 8px 0 0;
-    }
-
-    #board {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-      gap: 10px;
-      max-width: 900px;
-      margin: 30px auto;
-      padding: 10px;
-    }
-
-    .num {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: #1d4ed8;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.1rem;
-      cursor: pointer;
-      transition: 0.2s;
-      user-select: none;
-    }
-
-    .num:hover {
-      background: #2563eb;
-      transform: scale(1.05);
-    }
-
-    .num.selected {
-      background: #10b981;
-      color: white;
-    }
-
-    .num.unavailable {
-      background: #6b7280;
-      color: #ccc;
-      cursor: not-allowed;
-    }
-
-    #actions {
-      margin: 20px 0;
-    }
-
-    button {
-      background: #3b82f6;
-      border: none;
-      color: white;
-      font-size: 1rem;
-      padding: 10px 20px;
-      border-radius: 10px;
-      margin: 0 5px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    button:hover {
-      background: #2563eb;
-    }
-
-    footer {
-      margin: 40px 0;
-      opacity: 0.8;
-      font-size: 0.9rem;
-    }
+    body{margin:0;font-family:Poppins,system-ui,Arial,sans-serif;background:linear-gradient(135deg,#0b355b,#103b6e);color:#fff;min-height:100vh;}
+    header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#0a2e56}
+    header img{height:80px}
+    h1{margin:0;font-size:1.6rem}
+    h2{margin:6px 0 0;opacity:.85;font-weight:400}
+    main{max-width:1000px;margin:20px auto;padding:0 14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:10px;margin:18px auto;max-width:900px}
+    .cell{width:60px;height:60px;border-radius:50%;background:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;user-select:none;transition:.15s}
+    .cell:hover{transform:scale(1.05);background:#2563eb}
+    .cell.unavailable{background:#6b7280;color:#cbd5e1;cursor:not-allowed}
+    .cell.selected{outline:3px solid #10b981}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
+    input,button{font-family:inherit}
+    input{padding:10px 12px;border-radius:10px;border:1px solid #2b5b92;background:#0f2d54;color:#fff}
+    button{padding:10px 16px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+    .btn{background:#3b82f6;color:#fff}
+    .btn.secondary{background:#1f3d66}
+    .note{opacity:.9}
+    #paypalButtons{margin-top:10px}
   </style>
 </head>
 <body>
-  <header>
-    <img src="mascot.png" alt="Mascot">
-    <div>
-      <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
-      <h2>$10 per number · pick one or more (1–300)</h2>
-    </div>
-    <img src="isnsw-redo.png" alt="Logo">
-  </header>
+<header>
+  <img src="mascot.png" alt="Mascot">
+  <div>
+    <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
+    <h2>$10 per number · pick one or more (1–300)</h2>
+  </div>
+  <img src="isnsw-redo.png" alt="Logo">
+</header>
 
-  <main>
-    <div id="actions">
-      <button id="clearBtn">Clear</button>
-      <button id="holdBtn">Hold Selection</button>
-    </div>
-    <div id="board">Loading numbers...</div>
-  </main>
+<main>
+  <div class="row">
+    <input id="name"  placeholder="Your name"  required>
+    <input id="email" placeholder="Email (receipt)" required type="email">
+    <input id="phone" placeholder="Phone (optional)">
+    <button id="clearBtn" class="btn secondary">Clear</button>
+  </div>
 
-  <footer>Powered by Google Sheets + Apps Script · © 2025 INNSW Fundraiser</footer>
+  <div id="board" class="grid">Loading numbers…</div>
 
-  <script>
-    // --- connect to your working Apps Script ---
-    const APP_SCRIPT = "https://script.google.com/macros/s/AKfycbw4KgPWqGHo5shvpsv9KmeHVWt8kzOKoMnJ8adAmyloBMNqEkwQap0IhqjhEUeq2f8YMw/exec";
-    const board = document.getElementById("board");
-    let selected = [];
+  <div class="row">
+    <button id="reserveBtn" class="btn">Reserve & Pay via PayPal (Sandbox)</button>
+    <span id="summary" class="note"></span>
+  </div>
 
-    async function loadNumbers() {
-      board.textContent = "Loading numbers...";
-      const res = await fetch(APP_SCRIPT + "?path=state");
-      const data = await res.json();
-      board.innerHTML = "";
-      data.numbers.forEach(n => {
-        const div = document.createElement("div");
-        div.className = "num" + (n.status !== "available" ? " unavailable" : "");
-        div.textContent = n.num;
-        if (n.status === "available") {
-          div.onclick = () => toggleNumber(div, n.num);
-        }
-        board.appendChild(div);
-      });
-    }
+  <div id="paypalButtons"></div>
+</main>
 
-    function toggleNumber(el, num) {
-      if (el.classList.contains("selected")) {
-        el.classList.remove("selected");
-        selected = selected.filter(n => n !== num);
-      } else {
-        el.classList.add("selected");
-        selected.push(num);
+<script>
+  const APP = "https://script.google.com/macros/s/AKfycbwzvSzabYV2y3pf9nGfK2wttRgxWTSjMVgFZ2qPlIeysEvBO_1RAjfGE638Elv37GJ3GQ/exec"; // ← replace after you deploy
+  const board = document.getElementById('board');
+  const summary = document.getElementById('summary');
+  const reserveBtn = document.getElementById('reserveBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const paypalButtonsDiv = document.getElementById('paypalButtons');
+
+  let STATE = null;
+  let selected = new Set();
+  let holdId = null;
+
+  function money(cents){ return new Intl.NumberFormat(undefined,{style:'currency',currency:(STATE?.currency||'AUD')}).format(cents/100); }
+  function updateSummary(){
+    const arr=[...selected].sort((a,b)=>a-b);
+    if (!arr.length){ summary.textContent = 'No numbers selected yet.'; return; }
+    const total = (STATE?.price_cents||1000)*arr.length;
+    summary.textContent = `Selected: ${arr.join(', ')} · Qty ${arr.length} · Total ${money(total)}`;
+  }
+
+  async function loadState(){
+    const r = await fetch(APP+'?path=state');
+    STATE = await r.json();
+    renderGrid(STATE.numbers);
+  }
+
+  function renderGrid(nums){
+    board.innerHTML='';
+    nums.forEach(n=>{
+      const d = document.createElement('div');
+      d.className = 'cell' + (n.status==='available' ? '' : ' unavailable');
+      d.textContent = n.num;
+      if (n.status==='available'){
+        d.onclick = ()=>{ if (holdId) return;
+          if (selected.has(n.num)) selected.delete(n.num); else selected.add(n.num);
+          d.classList.toggle('selected'); updateSummary();
+        };
       }
-      console.log("Selected:", selected);
-    }
+      board.appendChild(d);
+    });
+    updateSummary();
+  }
 
-    document.getElementById("clearBtn").onclick = () => {
-      document.querySelectorAll(".num.selected").forEach(el => el.classList.remove("selected"));
-      selected = [];
+  clearBtn.onclick = async ()=>{
+    selected.clear(); holdId=null; paypalButtonsDiv.innerHTML='';
+    await loadState();
+  };
+
+  reserveBtn.onclick = async ()=>{
+    if (holdId) return alert('You already have a pending hold — complete or clear first.');
+    const name = document.getElementById('name').value.trim();
+    const email= document.getElementById('email').value.trim();
+    const phone= document.getElementById('phone').value.trim();
+    const numbers = [...selected];
+
+    if (!numbers.length) return alert('Please select at least one number.');
+    if (!name || !email) return alert('Please enter your name and email.');
+
+    const res = await fetch(APP+'?path=reserve',{ method:'POST', body: JSON.stringify({ name, email, phone, numbers }) });
+    const jr = await res.json();
+    if (!jr.ok) return alert(jr.error || 'Could not reserve');
+
+    holdId = jr.hold_id;
+    await loadState();
+    renderPayPalButtons(); // show sandbox checkout
+  };
+
+  async function createPayPalOrder(){
+    const r = await fetch(APP+'?path=paypal_order',{ method:'POST', body: JSON.stringify({ hold_id: holdId }) });
+    const jr = await r.json();
+    if (jr.error) { alert(jr.error); throw new Error(jr.error); }
+    return jr.id;
+  }
+
+  async function capturePayPalOrder(orderID){
+    const r = await fetch(APP+'?path=paypal_capture',{ method:'POST', body: JSON.stringify({ order_id: orderID }) });
+    return await r.json();
+  }
+
+  async function renderPayPalButtons(){
+    paypalButtonsDiv.innerHTML = '';
+    // Load PayPal SDK using your sandbox client id from backend
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(STATE.paypal_client_id)}&currency=${(STATE.currency||'AUD')}`;
+    script.onload = () => {
+      // eslint-disable-next-line no-undef
+      paypal.Buttons({
+        createOrder: async ()=> await createPayPalOrder(),
+        onApprove: async (d)=> {
+          const jr = await capturePayPalOrder(d.orderID);
+          if (jr.status === 'COMPLETED'){
+            alert('Sandbox payment successful — your numbers are confirmed.');
+            holdId = null; selected.clear(); await loadState();
+          } else {
+            alert('Payment not completed. You can try again.');
+          }
+        },
+        onError: (err)=>{ console.error(err); alert('PayPal error — please try again.'); }
+      }).render('#paypalButtons');
     };
+    document.body.appendChild(script);
+  }
 
-    document.getElementById("holdBtn").onclick = () => {
-      if (!selected.length) return alert("Please select at least one number.");
-      alert("You selected numbers: " + selected.join(", ") + "\n(Checkout integration coming soon)");
-    };
-
-    loadNumbers();
-  </script>
+  loadState();
+</script>
 </body>
 </html>
