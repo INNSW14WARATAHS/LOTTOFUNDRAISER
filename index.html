@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INNSW 14 WARATAHS — Lotto Board</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://www.paypal.com/sdk/js?client-id=sb&currency=AUD"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <img src="mascot.png" class="logo-left" alt="mascot" />
+      <div class="titles">
+        <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
+        <p class="sub">$10 per number · pick one or more (1–300)</p>
+      </div>
+      <img src="isnsw.png" class="logo-right" alt="ISNSW" />
+    </header>
+
+    <div id="messages"></div>
+
+    <div id="grid" class="grid"></div>
+
+    <div class="toolbar">
+      <button id="clearBtn" class="btn ghost">Clear</button>
+      <button id="holdBtn" class="btn primary">Hold Selection</button>
+    </div>
+    <div id="summary" class="summary">No numbers selected yet.</div>
+
+    <section id="checkout" class="checkout hidden">
+      <h3>Checkout</h3>
+      <div class="payrow">
+        <button id="stripeBtn" class="btn primary">Pay with Stripe</button>
+        <div id="paypalButtons"></div>
+      </div>
+      <p class="note">Your numbers are reserved for <span id="holdMinutes">10</span> minutes while you pay.</p>
+    </section>
+  </div>
+  <script>window.APP_SCRIPT = 'https://script.google.com/macros/s/AKfycbwcJhR-_2PoQvFxiWzg3hLjVEE57dimTx7mZ7p4W6BvfpWpfjHAwuvz9vtF0ilFryxm2A/exec';</script>
+  <script src="app.js"></script>
+</body>
+</html>
