@@ -6,6 +6,7 @@
   <title>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
+    :root{color-scheme:dark light}
     body{margin:0;font-family:Poppins,system-ui,Arial,sans-serif;background:linear-gradient(135deg,#0b355b,#103b6e);color:#fff;min-height:100vh;}
     header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#0a2e56}
     header img{height:80px}
@@ -27,20 +28,17 @@
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
 
-    /* Loading/progress style for the lock button */
+    /* Loading/progress style for buttons */
     .btn.loading{position:relative;opacity:.7;cursor:wait}
     .btn.loading::after{
-      content:"";
-      position:absolute;left:6px;right:6px;bottom:-6px;height:4px;
+      content:"";position:absolute;left:6px;right:6px;bottom:-6px;height:4px;
       background:rgba(255,255,255,.25);border-radius:999px;overflow:hidden;
     }
     .btn.loading::before{
-      content:"";
-      position:absolute;left:6px;bottom:-6px;height:4px;width:30%;
-      background:#10b981;border-radius:999px;
-      animation:loadbar 1.2s infinite ease-in-out;
+      content:"";position:absolute;left:6px;bottom:-6px;height:4px;width:30%;
+      background:#10b981;border-radius:999px;animation:loadbar 1.2s infinite ease-in-out;
     }
-    @keyframes loadbar { 0%{left:6px;width:20%} 50%{left:50%;width:40%} 100%{left:calc(100% - 30% - 6px);width:30%} }
+    @keyframes loadbar{0%{left:6px;width:20%}50%{left:50%;width:40%}100%{left:calc(100% - 30% - 6px);width:30%}}
 
     /* Stripe area */
     #stripeWrap{display:flex;justify-content:center;margin-top:10px}
@@ -57,7 +55,6 @@
   <img src="mascot.png" alt="Mascot">
   <div>
     <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
-    <!-- Updated range to 1–400 -->
     <h2>$10 per number · pick one or more (1–400)</h2>
   </div>
   <img src="isnsw-redo.png" alt="Logo">
@@ -92,7 +89,7 @@
 </main>
 
 <script>
-  // Replace with your latest Web App /exec URL:
+  /* ====== CONFIG: set to your deployed /exec URL ====== */
   const APP = "https://script.google.com/macros/s/AKfycbx53VlVlIWYi9byQ0KVvUcxBvSSICDhammMdkZycu2RZYRy4YmExuEIn1KZick8YfkIGw/exec";
 
   const board = document.getElementById('board');
@@ -132,7 +129,7 @@
   async function loadState(){
     const r = await fetch(APP+'?path=state');
     STATE = await r.json();
-    renderGrid(STATE.numbers);
+    renderGrid(STATE.numbers || []);
   }
 
   function renderGrid(nums){
@@ -142,7 +139,7 @@
       d.className = 'cell' + (n.status==='available' ? '' : ' unavailable');
       d.textContent = n.num;
       if (n.status==='available'){
-        d.onclick = ()=>{ if (holdId) return; // already locked -> don't change
+        d.onclick = ()=>{ if (holdId) return; // after lock, disable toggling
           if (selected.has(n.num)) selected.delete(n.num); else selected.add(n.num);
           d.classList.toggle('selected'); updateSummary();
         };
@@ -181,42 +178,56 @@
   }
 
   async function renderStripeElements(){
-    // Ask backend to create (or reuse) a PaymentIntent for this hold
-    // Expected response: { ok:true, publishable_key, client_secret, amount_cents, currency }
-    const r = await fetch(APP+'?path=stripe_intent', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ hold_id: holdId })
-    });
-    const jr = await r.json();
-    if (!jr.ok){ alert(jr.error || 'Could not start payment.'); return; }
+    try{
+      // NOTE: no explicit JSON headers -> avoids CORS preflight with Apps Script
+      const r = await fetch(APP+'?path=stripe_intent', {
+        method:'POST',
+        body: JSON.stringify({ hold_id: holdId })
+      });
+      const jr = await r.json();
 
-    clientSecret = jr.client_secret;
-    const pk = jr.publishable_key;
-    stripe = Stripe(pk); // test/sandbox publishable key from your Apps Script
-    elements = stripe.elements({ clientSecret, appearance:{ theme:'night' }});
+      if (!jr.ok){
+        stripeBox.style.display = 'block';
+        paymentStatus.textContent = jr.error || 'Could not start payment (intent). Check deployment & keys.';
+        return;
+      }
 
-    const paymentElement = elements.create('payment', { layout:'tabs' });
-    paymentElement.mount('#payment-element');
+      clientSecret = jr.client_secret;
+      const pk = jr.publishable_key;
+      if (!pk || !clientSecret){
+        stripeBox.style.display = 'block';
+        paymentStatus.textContent = 'Stripe keys not configured. Set Script Properties and redeploy.';
+        return;
+      }
 
-    // Show box + update button label to include amount
-    stripeBox.style.display = 'block';
-    if (jr.amount_cents && jr.currency){
-      payBtn.textContent = `Pay ${money(jr.amount_cents)} Now`;
-    } else {
-      payBtn.textContent = 'Pay Now';
+      stripe = Stripe(pk);
+      elements = stripe.elements({ clientSecret, appearance:{ theme:'night' }});
+      const paymentElement = elements.create('payment', { layout:'tabs' });
+      paymentElement.mount('#payment-element');
+
+      stripeBox.style.display = 'block';
+      payBtn.textContent = (jr.amount_cents && jr.currency)
+        ? `Pay ${money(jr.amount_cents)} Now`
+        : 'Pay Now';
+
+      paymentStatus.textContent = ''; // clear any previous message
+    }catch(err){
+      console.error(err);
+      stripeBox.style.display = 'block';
+      paymentStatus.textContent = 'Network error starting payment. Check APP URL / deployment.';
     }
   }
 
   async function confirmStripePayment(){
+    if (!stripe || !elements){
+      paymentStatus.textContent = 'Payment form not ready yet.';
+      return;
+    }
     paymentStatus.textContent = 'Confirming payment…';
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        // You can host a thank-you page if desired; staying inline for now:
-        return_url: window.location.href
-      },
-      redirect: 'if_required'
+      confirmParams:{ return_url: window.location.href },
+      redirect:'if_required'
     });
 
     if (error){
@@ -225,37 +236,34 @@
       return;
     }
 
-    // When no redirect is required, we have a PI to inspect
     if (paymentIntent && paymentIntent.status === 'succeeded'){
-      // Notify backend to finalize the reservation and mark numbers PAID
-      const fin = await fetch(APP+'?path=stripe_finalize', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ hold_id: holdId, payment_intent_id: paymentIntent.id })
-      });
-      const fj = await fin.json();
-      if (!fj.ok){
-        paymentStatus.textContent = fj.error || 'Payment succeeded, but finalization failed. We’ll sort it out.';
-        return;
+      try{
+        const fin = await fetch(APP+'?path=stripe_finalize', {
+          method:'POST',
+          body: JSON.stringify({ hold_id: holdId, payment_intent_id: paymentIntent.id })
+        });
+        const fj = await fin.json();
+        if (!fj.ok){
+          paymentStatus.textContent = fj.error || 'Payment succeeded, but finalization failed.';
+          return;
+        }
+        alert('Payment successful — your numbers are confirmed. Thank you!');
+        holdId = null; selected.clear(); teardownStripe();
+        await loadState();
+        window.scrollTo({top:0,behavior:'smooth'});
+      }catch(e){
+        console.error(e);
+        paymentStatus.textContent = 'Paid, but we could not finalize. We will resolve this manually.';
       }
-
-      alert('Payment successful — your numbers are confirmed. Thank you!');
-      holdId = null; selected.clear(); teardownStripe();
-      await loadState();
-      window.scrollTo({top:0,behavior:'smooth'});
       return;
     }
-
-    // If we reach here, the PI isn’t succeeded (requires_action, etc.)
     paymentStatus.textContent = 'Please complete any additional authentication steps.';
   }
 
   // Lock & then show Stripe
   document.getElementById('lockBtn').onclick = ()=> withLoading(lockBtn, async ()=>{
-    if (holdId) {
-      stripeBox?.scrollIntoView({behavior:'smooth'});
-      return;
-    }
+    if (holdId) { stripeBox?.scrollIntoView({behavior:'smooth'}); return; }
+
     const name = document.getElementById('name').value.trim();
     const email= document.getElementById('email').value.trim();
     const phone= document.getElementById('phone').value.trim();
