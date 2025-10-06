@@ -12,11 +12,13 @@
     h1{margin:0;font-size:1.6rem}
     h2{margin:6px 0 0;opacity:.85;font-weight:400}
     main{max-width:1000px;margin:20px auto;padding:0 14px}
+
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:10px;margin:18px auto;max-width:900px}
     .cell{width:60px;height:60px;border-radius:50%;background:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;user-select:none;transition:.15s}
     .cell:hover{transform:scale(1.05);background:#2563eb}
     .cell.unavailable{background:#6b7280;color:#cbd5e1;cursor:not-allowed}
     .cell.selected{outline:3px solid #10b981}
+
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:10px 0}
     input,button{font-family:inherit}
     input{padding:10px 12px;border-radius:10px;border:1px solid #2b5b92;background:#0f2d54;color:#fff;min-width:220px;text-align:center}
@@ -24,6 +26,7 @@
     .btn{background:#3b82f6;color:#fff}
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
+
     /* Loading/progress style for the lock button */
     .btn.loading{position:relative;opacity:.7;cursor:wait}
     .btn.loading::after{
@@ -38,16 +41,24 @@
       animation:loadbar 1.2s infinite ease-in-out;
     }
     @keyframes loadbar { 0%{left:6px;width:20%} 50%{left:50%;width:40%} 100%{left:calc(100% - 30% - 6px);width:30%} }
-    #paypalWrap{display:flex;justify-content:center;margin-top:10px}
-    #paypalButtons{min-height:45px} /* reserve space so layout doesn't jump */
+
+    /* Stripe area */
+    #stripeWrap{display:flex;justify-content:center;margin-top:10px}
+    #stripeBox{background:#0a2e56;border:1px solid #123b6a;border-radius:12px;padding:16px;min-width:320px;max-width:520px;width:100%}
+    #stripeActions{display:flex;gap:10px;justify-content:center;margin-top:12px}
+    #payment-status{margin-top:8px;text-align:center;min-height:20px;opacity:.9}
   </style>
+
+  <!-- Stripe.js v3 -->
+  <script src="https://js.stripe.com/v3"></script>
 </head>
 <body>
 <header>
   <img src="mascot.png" alt="Mascot">
   <div>
     <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
-    <h2>$10 per number · pick one or more (1–300)</h2>
+    <!-- Updated range to 1–400 -->
+    <h2>$10 per number · pick one or more (1–400)</h2>
   </div>
   <img src="isnsw-redo.png" alt="Logo">
 </header>
@@ -64,8 +75,16 @@
     <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
   </div>
 
-  <!-- PayPal buttons now appear RIGHT HERE, under the lock button -->
-  <div id="paypalWrap"><div id="paypalButtons"></div></div>
+  <!-- Stripe payment form appears RIGHT HERE, under the lock button -->
+  <div id="stripeWrap">
+    <div id="stripeBox" style="display:none">
+      <div id="payment-element"><!-- Stripe Elements mounts here --></div>
+      <div id="stripeActions">
+        <button id="payBtn" class="btn">Pay Now</button>
+      </div>
+      <div id="payment-status"></div>
+    </div>
+  </div>
 
   <!-- Summary and grid come after -->
   <p id="summary" class="note"></p>
@@ -80,13 +99,29 @@
   const lockBtn = document.getElementById('lockBtn');
   const clearBtn = document.getElementById('clearBtn');
   const summary = document.getElementById('summary');
-  const paypalButtonsDiv = document.getElementById('paypalButtons');
+
+  // Stripe UI refs
+  const stripeBox = document.getElementById('stripeBox');
+  const paymentElementDiv = document.getElementById('payment-element');
+  const payBtn = document.getElementById('payBtn');
+  const paymentStatus = document.getElementById('payment-status');
 
   let STATE = null;
   let selected = new Set();
   let holdId = null;
 
-  function money(cents){ return new Intl.NumberFormat(undefined,{style:'currency',currency:(STATE?.currency||'AUD')}).format(cents/100); }
+  // Stripe state
+  let stripe = null;
+  let elements = null;
+  let clientSecret = null;
+
+  function money(cents){
+    return new Intl.NumberFormat(undefined,{
+      style:'currency',
+      currency:(STATE?.currency||'AUD')
+    }).format(cents/100);
+  }
+
   function updateSummary(){
     const arr=[...selected].sort((a,b)=>a-b);
     if (!arr.length){ summary.textContent = 'No numbers selected yet.'; return; }
@@ -118,7 +153,7 @@
   }
 
   clearBtn.onclick = async ()=>{
-    selected.clear(); holdId=null; paypalButtonsDiv.innerHTML='';
+    selected.clear(); holdId=null; teardownStripe();
     await loadState();
     window.scrollTo({top:0,behavior:'smooth'});
   };
@@ -128,7 +163,7 @@
     btn.disabled = true;
     btn.classList.add('loading');
     const oldText = btn.textContent;
-    btn.textContent = 'Locking...';
+    btn.textContent = (btn===lockBtn ? 'Locking...' : 'Processing...');
     try { return await task(); }
     finally {
       btn.disabled = false;
@@ -137,8 +172,90 @@
     }
   }
 
+  // --- Stripe helpers ---
+  function teardownStripe(){
+    paymentStatus.textContent = '';
+    paymentElementDiv.innerHTML = '';
+    stripeBox.style.display = 'none';
+    stripe = null; elements = null; clientSecret = null;
+  }
+
+  async function renderStripeElements(){
+    // Ask backend to create (or reuse) a PaymentIntent for this hold
+    // Expected response: { ok:true, publishable_key, client_secret, amount_cents, currency }
+    const r = await fetch(APP+'?path=stripe_intent', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ hold_id: holdId })
+    });
+    const jr = await r.json();
+    if (!jr.ok){ alert(jr.error || 'Could not start payment.'); return; }
+
+    clientSecret = jr.client_secret;
+    const pk = jr.publishable_key;
+    stripe = Stripe(pk); // test/sandbox publishable key from your Apps Script
+    elements = stripe.elements({ clientSecret, appearance:{ theme:'night' }});
+
+    const paymentElement = elements.create('payment', { layout:'tabs' });
+    paymentElement.mount('#payment-element');
+
+    // Show box + update button label to include amount
+    stripeBox.style.display = 'block';
+    if (jr.amount_cents && jr.currency){
+      payBtn.textContent = `Pay ${money(jr.amount_cents)} Now`;
+    } else {
+      payBtn.textContent = 'Pay Now';
+    }
+  }
+
+  async function confirmStripePayment(){
+    paymentStatus.textContent = 'Confirming payment…';
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        // You can host a thank-you page if desired; staying inline for now:
+        return_url: window.location.href
+      },
+      redirect: 'if_required'
+    });
+
+    if (error){
+      console.error(error);
+      paymentStatus.textContent = error.message || 'Payment failed. Please try again.';
+      return;
+    }
+
+    // When no redirect is required, we have a PI to inspect
+    if (paymentIntent && paymentIntent.status === 'succeeded'){
+      // Notify backend to finalize the reservation and mark numbers PAID
+      const fin = await fetch(APP+'?path=stripe_finalize', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ hold_id: holdId, payment_intent_id: paymentIntent.id })
+      });
+      const fj = await fin.json();
+      if (!fj.ok){
+        paymentStatus.textContent = fj.error || 'Payment succeeded, but finalization failed. We’ll sort it out.';
+        return;
+      }
+
+      alert('Payment successful — your numbers are confirmed. Thank you!');
+      holdId = null; selected.clear(); teardownStripe();
+      await loadState();
+      window.scrollTo({top:0,behavior:'smooth'});
+      return;
+    }
+
+    // If we reach here, the PI isn’t succeeded (requires_action, etc.)
+    paymentStatus.textContent = 'Please complete any additional authentication steps.';
+  }
+
+  // Lock & then show Stripe
   document.getElementById('lockBtn').onclick = ()=> withLoading(lockBtn, async ()=>{
-    if (holdId) { document.getElementById('paypalButtons').scrollIntoView({behavior:'smooth'}); return; }
+    if (holdId) {
+      stripeBox?.scrollIntoView({behavior:'smooth'});
+      return;
+    }
     const name = document.getElementById('name').value.trim();
     const email= document.getElementById('email').value.trim();
     const phone= document.getElementById('phone').value.trim();
@@ -147,57 +264,21 @@
     if (!numbers.length) return alert('Please select at least one number.');
     if (!name || !email)  return alert('Please enter your name and email.');
 
-    const res = await fetch(APP+'?path=reserve',{ method:'POST', body: JSON.stringify({ name, email, phone, numbers }) });
+    const res = await fetch(APP+'?path=reserve',{
+      method:'POST',
+      body: JSON.stringify({ name, email, phone, numbers })
+    });
     const jr = await res.json();
     if (!jr.ok) { alert(jr.error || 'Could not lock your numbers. Try again.'); return; }
 
     holdId = jr.hold_id;
-    await loadState();          // refresh to show HELD
-    await renderPayPalButtons();// reveal PayPal right under the lock button
-    document.getElementById('paypalButtons').scrollIntoView({behavior:'smooth'});
+    await loadState();              // refresh to show HELD
+    await renderStripeElements();   // reveal Stripe right under the lock button
+    stripeBox?.scrollIntoView({behavior:'smooth'});
   });
 
-  async function createPayPalOrder(){
-    const r = await fetch(APP+'?path=paypal_order',{ method:'POST', body: JSON.stringify({ hold_id: holdId }) });
-    const jr = await r.json();
-    if (jr.error) { alert(jr.error); throw new Error(jr.error); }
-    return jr.id;
-  }
-
-  async function capturePayPalOrder(orderID){
-    const r = await fetch(APP+'?path=paypal_capture',{ method:'POST', body: JSON.stringify({ order_id: orderID }) });
-    return await r.json();
-  }
-
-  async function renderPayPalButtons(){
-    paypalButtonsDiv.innerHTML = '';
-    // Load PayPal SDK using client id from backend (works in sandbox)
-    const script = document.createElement('script');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(STATE.paypal_client_id)}&currency=${(STATE.currency||'AUD')}`;
-    return new Promise((resolve,reject)=>{
-      script.onload = () => {
-        // eslint-disable-next-line no-undef
-        paypal.Buttons({
-          createOrder: async ()=> await createPayPalOrder(),
-          onApprove: async (d)=> {
-            const jr = await capturePayPalOrder(d.orderID);
-            if (jr.status === 'COMPLETED'){
-              alert('Payment successful — your numbers are confirmed. Thank you!');
-              holdId = null; selected.clear(); await loadState();
-              paypalButtonsDiv.innerHTML = '';
-              window.scrollTo({top:0,behavior:'smooth'});
-            } else {
-              alert('Payment not completed. You can try again.');
-            }
-          },
-          onError: (err)=>{ console.error(err); alert('PayPal error — please try again.'); }
-        }).render('#paypalButtons');
-        resolve();
-      };
-      script.onerror = reject;
-      document.body.appendChild(script);
-    });
-  }
+  // Pay button handler
+  payBtn.onclick = ()=> withLoading(payBtn, confirmStripePayment);
 
   loadState();
 </script>
