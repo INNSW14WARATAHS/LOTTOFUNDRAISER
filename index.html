@@ -1,294 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</title>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INNSW Lotto Raffle</title>
   <style>
-    :root{color-scheme:dark light}
-    body{margin:0;font-family:Poppins,system-ui,Arial,sans-serif;background:linear-gradient(135deg,#0b355b,#103b6e);color:#fff;min-height:100vh;}
-    header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#0a2e56}
-    header img{height:80px}
-    h1{margin:0;font-size:1.6rem}
-    h2{margin:6px 0 0;opacity:.85;font-weight:400}
-    main{max-width:1000px;margin:20px auto;padding:0 14px}
-
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:10px;margin:18px auto;max-width:900px}
-    .cell{width:60px;height:60px;border-radius:50%;background:#1d4ed8;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:pointer;user-select:none;transition:.15s}
-    .cell:hover{transform:scale(1.05);background:#2563eb}
-    .cell.unavailable{background:#6b7280;color:#cbd5e1;cursor:not-allowed}
-    .cell.selected{outline:3px solid #10b981}
-
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;margin:10px 0}
-    input,button{font-family:inherit}
-    input{padding:10px 12px;border-radius:10px;border:1px solid #2b5b92;background:#0f2d54;color:#fff;min-width:220px;text-align:center}
-    button{padding:10px 16px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
-    .btn{background:#3b82f6;color:#fff}
-    .btn.secondary{background:#1f3d66}
-    .note{opacity:.9;text-align:center}
-
-    /* Loading/progress style for buttons */
-    .btn.loading{position:relative;opacity:.7;cursor:wait}
-    .btn.loading::after{
-      content:"";position:absolute;left:6px;right:6px;bottom:-6px;height:4px;
-      background:rgba(255,255,255,.25);border-radius:999px;overflow:hidden;
+    body { font-family: system-ui, Arial, sans-serif; background: #fff; margin: 0; padding: 0; text-align:center; }
+    .container { max-width: 600px; margin: 40px auto; padding: 20px; }
+    h1 { color: #c81e24; }
+    .numbers { display: flex; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+    .num { width: 50px; height: 50px; margin: 4px; line-height: 50px; border-radius: 8px;
+           background: #f2f2f2; border: 1px solid #ddd; cursor: pointer; font-weight: 500; }
+    .num.held, .num.paid { background: #ccc; cursor: not-allowed; color: #666; }
+    .num.selected { background: #c81e24; color: #fff; }
+    #lock-btn { margin-top: 15px; padding: 12px 24px; background:#c81e24; color:#fff;
+                border:none; border-radius:8px; cursor:pointer; font-size:16px; font-weight:600; }
+    #lock-btn.loading { opacity:0.7; pointer-events:none; position:relative; }
+    #lock-btn.loading::after {
+      content:""; position:absolute; top:50%; left:50%; width:18px; height:18px;
+      margin:-9px 0 0 -9px; border:2px solid #fff; border-top-color:transparent;
+      border-radius:50%; animation:spin 0.8s linear infinite;
     }
-    .btn.loading::before{
-      content:"";position:absolute;left:6px;bottom:-6px;height:4px;width:30%;
-      background:#10b981;border-radius:999px;animation:loadbar 1.2s infinite ease-in-out;
-    }
-    @keyframes loadbar{0%{left:6px;width:20%}50%{left:50%;width:40%}100%{left:calc(100% - 30% - 6px);width:30%}}
-
-    /* Stripe area */
-    #stripeWrap{display:flex;justify-content:center;margin-top:10px}
-    #stripeBox{background:#0a2e56;border:1px solid #123b6a;border-radius:12px;padding:16px;min-width:320px;max-width:520px;width:100%}
-    #stripeActions{display:flex;gap:10px;justify-content:center;margin-top:12px}
-    #payment-status{margin-top:8px;text-align:center;min-height:20px;opacity:.9}
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #status { margin-top:15px; font-weight:500; }
+    #hold-timer { display:none; margin-top:10px; font-weight:600; color:#c81e24; }
   </style>
-
-  <!-- Stripe.js v3 -->
-  <script src="https://js.stripe.com/v3"></script>
 </head>
 <body>
-<header>
-  <img src="mascot.png" alt="Mascot">
-  <div>
-    <h1>INNSW 14 WARATAHS - LOTTO BOARD FUNDRAISER</h1>
-    <h2>$10 per number · pick one or more (1–400)</h2>
-  </div>
-  <img src="isnsw-redo.png" alt="Logo">
-</header>
+  <div class="container">
+    <h1>INNSW Lotto Raffle</h1>
+    <p>Select your numbers below:</p>
 
-<main>
-  <div class="row">
-    <input id="name"  placeholder="Your name"  required>
-    <input id="email" placeholder="Email (receipt)" required type="email">
-    <input id="phone" placeholder="Phone (optional)">
-  </div>
+    <div id="numbers" class="numbers"></div>
 
-  <div class="row">
-    <button id="clearBtn" class="btn secondary">Clear Selection</button>
-    <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
-  </div>
+    <button id="lock-btn" onclick="lockNumbers()">Lock in Numbers</button>
+    <div id="status"></div>
+    <div id="hold-timer"></div>
 
-  <!-- Stripe payment form appears RIGHT HERE, under the lock button -->
-  <div id="stripeWrap">
-    <div id="stripeBox" style="display:none">
-      <div id="payment-element"><!-- Stripe Elements mounts here --></div>
-      <div id="stripeActions">
-        <button id="payBtn" class="btn">Pay Now</button>
-      </div>
-      <div id="payment-status"></div>
+    <!-- Stripe placeholder (unchanged visual) -->
+    <div id="stripe-container" style="margin-top:20px; display:none;">
+      <p>Redirecting to secure payment...</p>
     </div>
   </div>
 
-  <!-- Summary and grid come after -->
-  <p id="summary" class="note"></p>
-  <div id="board" class="grid">Loading numbers…</div>
-</main>
+  <script>
+  const API_BASE = 'https://script.google.com/macros/s/YOUR_SCRIPT_DEPLOYMENT_ID/exec';
+  let selected = [];
+  let holdTimer, holdSeconds = 0;
 
-<script>
-  /* ====== CONFIG: set to your deployed /exec URL ====== */
-  const APP = "https://script.google.com/macros/s/AKfycbyhmc_YbA4IvU9prqE-vm4bsYUtBmaWqRMLaFRAig0bJNtvmXPBZpUErvcwDZCcHxcjdw/exec";
-
-  const board = document.getElementById('board');
-  const lockBtn = document.getElementById('lockBtn');
-  const clearBtn = document.getElementById('clearBtn');
-  const summary = document.getElementById('summary');
-
-  // Stripe UI refs
-  const stripeBox = document.getElementById('stripeBox');
-  const paymentElementDiv = document.getElementById('payment-element');
-  const payBtn = document.getElementById('payBtn');
-  const paymentStatus = document.getElementById('payment-status');
-
-  let STATE = null;
-  let selected = new Set();
-  let holdId = null;
-
-  // Stripe state
-  let stripe = null;
-  let elements = null;
-  let clientSecret = null;
-
-  function money(cents){
-    return new Intl.NumberFormat(undefined,{
-      style:'currency',
-      currency:(STATE?.currency||'AUD')
-    }).format(cents/100);
-  }
-
-  function updateSummary(){
-    const arr=[...selected].sort((a,b)=>a-b);
-    if (!arr.length){ summary.textContent = 'No numbers selected yet.'; return; }
-    const total = (STATE?.price_cents||1000)*arr.length;
-    summary.textContent = `Selected: ${arr.join(', ')} · Qty ${arr.length} · Total ${money(total)}`;
-  }
-
-  async function loadState(){
-    const r = await fetch(APP+'?path=state');
-    STATE = await r.json();
-    renderGrid(STATE.numbers || []);
-  }
-
-  function renderGrid(nums){
-    board.innerHTML='';
-    nums.forEach(n=>{
-      const d = document.createElement('div');
-      d.className = 'cell' + (n.status==='available' ? '' : ' unavailable');
-      d.textContent = n.num;
-      if (n.status==='available'){
-        d.onclick = ()=>{ if (holdId) return; // after lock, disable toggling
-          if (selected.has(n.num)) selected.delete(n.num); else selected.add(n.num);
-          d.classList.toggle('selected'); updateSummary();
-        };
-      }
-      board.appendChild(d);
-    });
-    updateSummary();
-  }
-
-  clearBtn.onclick = async ()=>{
-    selected.clear(); holdId=null; teardownStripe();
-    await loadState();
-    window.scrollTo({top:0,behavior:'smooth'});
-  };
-
-  // Util: run an async job with button loading state
-  async function withLoading(btn, task){
-    btn.disabled = true;
-    btn.classList.add('loading');
-    const oldText = btn.textContent;
-    btn.textContent = (btn===lockBtn ? 'Locking...' : 'Processing...');
-    try { return await task(); }
-    finally {
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.textContent = oldText;
-    }
-  }
-
-  // --- Stripe helpers ---
-  function teardownStripe(){
-    paymentStatus.textContent = '';
-    paymentElementDiv.innerHTML = '';
-    stripeBox.style.display = 'none';
-    stripe = null; elements = null; clientSecret = null;
-  }
-
-  async function renderStripeElements(){
-    try{
-      // NOTE: no explicit JSON headers -> avoids CORS preflight with Apps Script
-      const r = await fetch(APP+'?path=stripe_intent', {
-        method:'POST',
-        body: JSON.stringify({ hold_id: holdId })
+  function loadNumbers(){
+    fetch(API_BASE + '?path=state').then(r=>r.json()).then(d=>{
+      const area=document.getElementById('numbers');
+      area.innerHTML='';
+      d.numbers.forEach(n=>{
+        const div=document.createElement('div');
+        div.textContent=n.num;
+        div.className='num '+(n.status!=='available'?n.status:'');
+        if(n.status==='available') div.onclick=()=>toggleSelect(div,n.num);
+        area.appendChild(div);
       });
-      const jr = await r.json();
+    });
+  }
 
-      if (!jr.ok){
-        stripeBox.style.display = 'block';
-        paymentStatus.textContent = jr.error || 'Could not start payment (intent). Check deployment & keys.';
-        return;
-      }
+  function toggleSelect(el,num){
+    if(el.classList.contains('selected')){
+      el.classList.remove('selected');
+      selected=selected.filter(n=>n!==num);
+    }else{
+      el.classList.add('selected');
+      selected.push(num);
+    }
+  }
 
-      clientSecret = jr.client_secret;
-      const pk = jr.publishable_key;
-      if (!pk || !clientSecret){
-        stripeBox.style.display = 'block';
-        paymentStatus.textContent = 'Stripe keys not configured. Set Script Properties and redeploy.';
-        return;
-      }
+  async function lockNumbers(){
+    if(selected.length===0) return alert('Please select at least one number.');
+    const btn=document.getElementById('lock-btn');
+    const status=document.getElementById('status');
+    btn.classList.add('loading');
+    status.textContent='Locking your numbers...';
 
-      stripe = Stripe(pk);
-      elements = stripe.elements({ clientSecret, appearance:{ theme:'night' }});
-      const paymentElement = elements.create('payment', { layout:'tabs' });
-      paymentElement.mount('#payment-element');
+    try{
+      const body={ name:'Customer', email:'test@example.com', numbers:selected };
+      const res=await fetch(API_BASE+'?path=reserve',{method:'post',body:JSON.stringify(body)});
+      const data=await res.json();
+      if(!data.ok){ status.textContent=data.error; btn.classList.remove('loading'); return; }
 
-      stripeBox.style.display = 'block';
-      payBtn.textContent = (jr.amount_cents && jr.currency)
-        ? `Pay ${money(jr.amount_cents)} Now`
-        : 'Pay Now';
+      status.textContent='Numbers locked! Proceeding to payment...';
+      startHoldCountdown(2); // 2-minute visual timer
+      createStripeIntent(data.hold_id);
 
-      paymentStatus.textContent = ''; // clear any previous message
     }catch(err){
-      console.error(err);
-      stripeBox.style.display = 'block';
-      paymentStatus.textContent = 'Network error starting payment. Check APP URL / deployment.';
+      status.textContent='Error: '+err.message;
+    }finally{
+      btn.classList.remove('loading');
     }
   }
 
-  async function confirmStripePayment(){
-    if (!stripe || !elements){
-      paymentStatus.textContent = 'Payment form not ready yet.';
-      return;
-    }
-    paymentStatus.textContent = 'Confirming payment…';
-    const { error, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams:{ return_url: window.location.href },
-      redirect:'if_required'
-    });
-
-    if (error){
-      console.error(error);
-      paymentStatus.textContent = error.message || 'Payment failed. Please try again.';
-      return;
-    }
-
-    if (paymentIntent && paymentIntent.status === 'succeeded'){
-      try{
-        const fin = await fetch(APP+'?path=stripe_finalize', {
-          method:'POST',
-          body: JSON.stringify({ hold_id: holdId, payment_intent_id: paymentIntent.id })
-        });
-        const fj = await fin.json();
-        if (!fj.ok){
-          paymentStatus.textContent = fj.error || 'Payment succeeded, but finalization failed.';
-          return;
-        }
-        alert('Payment successful — your numbers are confirmed. Thank you!');
-        holdId = null; selected.clear(); teardownStripe();
-        await loadState();
-        window.scrollTo({top:0,behavior:'smooth'});
-      }catch(e){
-        console.error(e);
-        paymentStatus.textContent = 'Paid, but we could not finalize. We will resolve this manually.';
+  function startHoldCountdown(minutes){
+    holdSeconds = minutes * 60;
+    const el = document.getElementById('hold-timer');
+    el.style.display = 'block';
+    clearInterval(holdTimer);
+    holdTimer = setInterval(() => {
+      const m = Math.floor(holdSeconds / 60);
+      const s = holdSeconds % 60;
+      el.textContent = `Your numbers are reserved for ${m}:${s.toString().padStart(2,'0')}`;
+      if (holdSeconds-- <= 0) {
+        clearInterval(holdTimer);
+        el.textContent = 'Reservation expired — please try again.';
       }
-      return;
-    }
-    paymentStatus.textContent = 'Please complete any additional authentication steps.';
+    }, 1000);
   }
 
-  // Lock & then show Stripe
-  document.getElementById('lockBtn').onclick = ()=> withLoading(lockBtn, async ()=>{
-    if (holdId) { stripeBox?.scrollIntoView({behavior:'smooth'}); return; }
+  async function createStripeIntent(hold_id){
+    const stripeDiv=document.getElementById('stripe-container');
+    stripeDiv.style.display='block';
+    try{
+      const res=await fetch(API_BASE+'?path=stripe_intent',{method:'post',body:JSON.stringify({hold_id})});
+      const data=await res.json();
+      if(!data.ok) return alert(data.error);
 
-    const name = document.getElementById('name').value.trim();
-    const email= document.getElementById('email').value.trim();
-    const phone= document.getElementById('phone').value.trim();
-    const numbers = [...selected];
+      // Redirect to Stripe
+      const stripe=Stripe(data.publishable_key);
+      const {error}=await stripe.redirectToCheckout({clientReferenceId:hold_id, sessionId:data.client_secret});
+      if(error) alert(error.message);
+    }catch(err){
+      alert('Stripe error: '+err.message);
+    }
+  }
 
-    if (!numbers.length) return alert('Please select at least one number.');
-    if (!name || !email)  return alert('Please enter your name and email.');
-
-    const res = await fetch(APP+'?path=reserve',{
-      method:'POST',
-      body: JSON.stringify({ name, email, phone, numbers })
-    });
-    const jr = await res.json();
-    if (!jr.ok) { alert(jr.error || 'Could not lock your numbers. Try again.'); return; }
-
-    holdId = jr.hold_id;
-    await loadState();              // refresh to show HELD
-    await renderStripeElements();   // reveal Stripe right under the lock button
-    stripeBox?.scrollIntoView({behavior:'smooth'});
-  });
-
-  // Pay button handler
-  payBtn.onclick = ()=> withLoading(payBtn, confirmStripePayment);
-
-  loadState();
-</script>
+  loadNumbers();
+  </script>
+  <script src="https://js.stripe.com/v3/"></script>
 </body>
 </html>
