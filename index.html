@@ -28,6 +28,19 @@
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
 
+    /* Info box */
+    .note-box{
+      background:#0a2e56;
+      border:1px solid #123b6a;
+      border-radius:12px;
+      padding:12px 14px;
+      margin:10px auto 16px;
+      max-width:520px;
+      width:100%;
+      text-align:center;
+      opacity:.95;
+    }
+
     /* Loading/progress style for buttons */
     .btn.loading{position:relative;opacity:.7;cursor:wait}
     .btn.loading::after{
@@ -63,6 +76,14 @@
 </header>
 
 <main>
+
+  <!-- 🔹 Information area ABOVE form -->
+  <div id="raffle-note" class="note-box">
+    <p style="margin:0">
+      All proceeds support the INNSW 14 Waratahs team. Your chosen numbers will be held for 3 minutes while you complete payment.
+    </p>
+  </div>
+
   <div class="row">
     <input id="name"  placeholder="Your name"  required>
     <input id="email" placeholder="Email (receipt)" required type="email">
@@ -74,13 +95,12 @@
     <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
   </div>
 
-  <!-- 🔹 Countdown timer appears here -->
+  <!-- 🔹 Countdown timer -->
   <div id="hold-timer"></div>
 
-  <!-- Stripe payment form appears under the lock button -->
   <div id="stripeWrap">
     <div id="stripeBox" style="display:none">
-      <div id="payment-element"><!-- Stripe Elements mounts here --></div>
+      <div id="payment-element"></div>
       <div id="stripeActions">
         <button id="payBtn" class="btn">Pay Now</button>
       </div>
@@ -252,7 +272,7 @@
     if(!jr.ok){alert(jr.error||'Could not lock your numbers. Try again.');return;}
 
     holdId=jr.hold_id;
-    startHoldCountdown(2); // 🔹 2-minute timer starts here
+    startHoldCountdown(3); // 🔹 changed to 3-minute timer
     await loadState();
     await renderStripeElements();
     stripeBox?.scrollIntoView({behavior:'smooth'});
