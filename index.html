@@ -28,17 +28,50 @@
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
 
-    /* Info box */
+    /* Info box with side-by-side text + image */
     .note-box{
       background:#0a2e56;
       border:1px solid #123b6a;
       border-radius:12px;
-      padding:12px 14px;
+      padding:16px;
       margin:10px auto 16px;
-      max-width:520px;
+      max-width:900px;
       width:100%;
-      text-align:center;
       opacity:.95;
+    }
+    .note-flex{
+      display:flex;
+      gap:18px;
+      justify-content:space-between;
+      align-items:stretch;             /* make both columns share equal height */
+    }
+    .note-copy{
+      flex:1 1 55%;
+      text-align:left;
+      line-height:1.55;
+    }
+    .note-copy p{margin:0}
+    .note-media{
+      flex:1 1 45%;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+    .note-media img{
+      /* Fit image to the height of the text box on wide screens */
+      height:100%;
+      width:auto;
+      max-width:100%;
+      object-fit:contain;
+      border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    /* Stack on small screens and let image be responsive width */
+    @media (max-width:720px){
+      .note-flex{flex-direction:column}
+      .note-copy{text-align:center}
+      .note-media img{height:auto;width:100%;max-width:100%}
     }
 
     /* Loading/progress style for buttons */
@@ -77,28 +110,26 @@
 
 <main>
 
-  <!-- 🔹 Information area ABOVE form -->
+  <!-- 🔹 Information area ABOVE form, with right-side static image -->
   <div id="raffle-note" class="note-box">
-    <p style="margin:0">
-<b>Help the INNSW 14 Waratahs get to Nationals!</b>
-      <br>
-       <br>
-Our amazing team is raising funds to get to Ipswich for the 2025 Nationals. Each player self-funds their trip — covering flights, uniforms, levies, transport, food, and accommodation (over $1800 each!).
-<br>
-      <br>
-<b>Support us by entering our Lucky Lotto Board Raffle!</b>
-       <br>
-- $10 per number — buy as many as you like
-       <br>
-- Great prizes including Mecca, Event Cinemas & City Cave vouchers, hampers, and 1st prize $500 cash!
-       <br>
-- Drawn online before Christmas
-       <br>
-       <br>
-
-Every ticket helps our team get to Nationals — thank you for your support! 
-
-    </p>
+    <div class="note-flex">
+      <div class="note-copy">
+        <p>
+          <b>Help the INNSW 14 Waratahs get to Nationals!</b><br><br>
+          Our amazing team is raising funds to get to Ipswich for the 2025 Nationals. Each player self-funds their trip — covering flights, uniforms, levies, transport, food, and accommodation (over $1800 each!).<br><br>
+          <b>Support us by entering our Lucky Lotto Board Raffle!</b><br>
+          – $10 per number — buy as many as you like<br>
+          – Great prizes including Mecca, Event Cinemas & City Cave vouchers, hampers, and 1st prize $500 cash!<br>
+          – Drawn online before Christmas<br><br>
+          Every ticket helps our team get to Nationals — thank you for your support!
+        </p>
+      </div>
+      <div class="note-media">
+        <img
+          src="https://raw.githubusercontent.com/INNSW14WARATAHS/LOTTOFUNDRAISER/refs/heads/main/image_1.png"
+          alt="INNSW Waratahs fundraiser image">
+      </div>
+    </div>
   </div>
 
   <div class="row">
@@ -289,7 +320,7 @@ Every ticket helps our team get to Nationals — thank you for your support!
     if(!jr.ok){alert(jr.error||'Could not lock your numbers. Try again.');return;}
 
     holdId=jr.hold_id;
-    startHoldCountdown(3); // 🔹 changed to 3-minute timer
+    startHoldCountdown(3); // 3-minute timer
     await loadState();
     await renderStripeElements();
     stripeBox?.scrollIntoView({behavior:'smooth'});
