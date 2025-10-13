@@ -28,7 +28,7 @@
     .btn.secondary{background:#1f3d66}
     .note{opacity:.9;text-align:center}
 
-    /* Info box with text + image side-by-side */
+    /* Info box with text + image side-by-side (GRID) */
     .note-box{
       background:#0a2e56;
       border:1px solid #123b6a;
@@ -40,35 +40,44 @@
       opacity:.95;
     }
     .note-flex{
-      display:flex;
+      display:grid;
+      grid-template-columns: 1fr 0.95fr; /* text | image */
       gap:18px;
-      align-items:stretch;
+      align-items:stretch;  /* children stretch to the grid row height (set by tallest content) */
     }
     .note-copy{
-      flex:1 1 55%;
       text-align:left;
       line-height:1.55;
     }
     .note-copy p{margin:0}
     .note-media{
-      flex:1 1 45%;
-      display:flex;
-      align-items:stretch;
-    }
-    .note-media img{
-      width:100%;
-      height:100%;
-      object-fit:cover; /* scales perfectly to match text box height */
+      display:grid;      /* lets the img stretch cleanly with height:100% */
+      overflow:hidden;   /* hides any tiny overflow from rounding */
       border-radius:10px;
       box-shadow:0 6px 18px rgba(0,0,0,.25);
       border:1px solid rgba(255,255,255,.08);
     }
+    .note-media img{
+      width:100%;
+      height:100%;       /* match text column height */
+      object-fit:cover;  /* fill column, crop evenly instead of stretching */
+      display:block;
+    }
 
     /* Stack on small screens */
     @media (max-width:720px){
-      .note-flex{flex-direction:column}
+      .note-flex{
+        grid-template-columns: 1fr;
+      }
       .note-copy{text-align:center}
-      .note-media img{height:auto;width:100%;object-fit:contain}
+      .note-media{
+        border-radius:10px;
+      }
+      .note-media img{
+        height:auto;      /* natural height when stacked */
+        width:100%;
+        object-fit:contain;
+      }
     }
 
     /* Loading/progress style for buttons */
@@ -83,10 +92,13 @@
     }
     @keyframes loadbar{0%{left:6px;width:20%}50%{left:50%;width:40%}100%{left:calc(100% - 30% - 6px);width:30%}}
 
+    /* Stripe area */
     #stripeWrap{display:flex;justify-content:center;margin-top:10px}
     #stripeBox{background:#0a2e56;border:1px solid #123b6a;border-radius:12px;padding:16px;min-width:320px;max-width:520px;width:100%}
     #stripeActions{display:flex;gap:10px;justify-content:center;margin-top:12px}
     #payment-status{margin-top:8px;text-align:center;min-height:20px;opacity:.9}
+
+    /* Timer */
     #hold-timer{display:none;margin-top:8px;text-align:center;font-weight:600;color:#10b981;font-size:1rem;}
   </style>
 
@@ -104,7 +116,7 @@
 
 <main>
 
-  <!-- 🔹 Information area ABOVE form -->
+  <!-- 🔹 Information area ABOVE form, with right-side static image -->
   <div id="raffle-note" class="note-box">
     <div class="note-flex">
       <div class="note-copy">
@@ -119,7 +131,9 @@
         </p>
       </div>
       <div class="note-media">
-        <img src="https://raw.githubusercontent.com/INNSW14WARATAHS/LOTTOFUNDRAISER/refs/heads/main/image_1.png" alt="INNSW Waratahs fundraiser image">
+        <img
+          src="https://raw.githubusercontent.com/INNSW14WARATAHS/LOTTOFUNDRAISER/refs/heads/main/image_1.png"
+          alt="INNSW Waratahs fundraiser image">
       </div>
     </div>
   </div>
@@ -135,6 +149,7 @@
     <button id="lockBtn" class="btn">Click To Lock In Numbers</button>
   </div>
 
+  <!-- 🔹 Countdown timer -->
   <div id="hold-timer"></div>
 
   <div id="stripeWrap">
@@ -153,11 +168,13 @@
 
 <script>
   const APP = "https://script.google.com/macros/s/AKfycbyhmc_YbA4IvU9prqE-vm4bsYUtBmaWqRMLaFRAig0bJNtvmXPBZpUErvcwDZCcHxcjdw/exec";
+
   const board=document.getElementById('board');
   const lockBtn=document.getElementById('lockBtn');
   const clearBtn=document.getElementById('clearBtn');
   const summary=document.getElementById('summary');
   const timerDiv=document.getElementById('hold-timer');
+
   const stripeBox=document.getElementById('stripeBox');
   const paymentElementDiv=document.getElementById('payment-element');
   const payBtn=document.getElementById('payBtn');
@@ -166,10 +183,12 @@
   let STATE=null;
   let selected=new Set();
   let holdId=null;
+
   let stripe=null;
   let elements=null;
   let clientSecret=null;
 
+  /* ===== TIMER ===== */
   let holdTimer, holdSeconds=0;
   function startHoldCountdown(minutes){
     holdSeconds=minutes*60;
@@ -186,7 +205,9 @@
     },1000);
   }
 
-  function money(cents){return new Intl.NumberFormat(undefined,{style:'currency',currency:(STATE?.currency||'AUD')}).format(cents/100);}
+  function money(cents){
+    return new Intl.NumberFormat(undefined,{style:'currency',currency:(STATE?.currency||'AUD')}).format(cents/100);
+  }
 
   function updateSummary(){
     const arr=[...selected].sort((a,b)=>a-b);
@@ -241,25 +262,39 @@
     try{
       const r=await fetch(APP+'?path=stripe_intent',{method:'POST',body:JSON.stringify({hold_id:holdId})});
       const jr=await r.json();
+
       if(!jr.ok){stripeBox.style.display='block';paymentStatus.textContent=jr.error||'Could not start payment.';return;}
+
       clientSecret=jr.client_secret;
       const pk=jr.publishable_key;
       if(!pk||!clientSecret){stripeBox.style.display='block';paymentStatus.textContent='Stripe keys not configured.';return;}
+
       stripe=Stripe(pk);
       elements=stripe.elements({clientSecret,appearance:{theme:'night'}});
       const paymentElement=elements.create('payment',{layout:'tabs'});
       paymentElement.mount('#payment-element');
+
       stripeBox.style.display='block';
       payBtn.textContent=(jr.amount_cents&&jr.currency)?`Pay ${money(jr.amount_cents)} Now`:'Pay Now';
       paymentStatus.textContent='';
-    }catch(err){console.error(err);stripeBox.style.display='block';paymentStatus.textContent='Network error starting payment.';}
+    }catch(err){
+      console.error(err);
+      stripeBox.style.display='block';
+      paymentStatus.textContent='Network error starting payment.';
+    }
   }
 
   async function confirmStripePayment(){
     if(!stripe||!elements){paymentStatus.textContent='Payment form not ready yet.';return;}
     paymentStatus.textContent='Confirming payment…';
-    const {error,paymentIntent}=await stripe.confirmPayment({elements,confirmParams:{return_url:window.location.href},redirect:'if_required'});
+    const {error,paymentIntent}=await stripe.confirmPayment({
+      elements,
+      confirmParams:{return_url:window.location.href},
+      redirect:'if_required'
+    });
+
     if(error){console.error(error);paymentStatus.textContent=error.message||'Payment failed.';return;}
+
     if(paymentIntent&&paymentIntent.status==='succeeded'){
       try{
         const fin=await fetch(APP+'?path=stripe_finalize',{method:'POST',body:JSON.stringify({hold_id:holdId,payment_intent_id:paymentIntent.id})});
@@ -277,23 +312,28 @@
 
   document.getElementById('lockBtn').onclick=()=>withLoading(lockBtn,async()=>{
     if(holdId){stripeBox?.scrollIntoView({behavior:'smooth'});return;}
+
     const name=document.getElementById('name').value.trim();
     const email=document.getElementById('email').value.trim();
     const phone=document.getElementById('phone').value.trim();
     const numbers=[...selected];
+
     if(!numbers.length)return alert('Please select at least one number.');
     if(!name||!email)return alert('Please enter your name and email.');
+
     const res=await fetch(APP+'?path=reserve',{method:'POST',body:JSON.stringify({name,email,phone,numbers})});
     const jr=await res.json();
     if(!jr.ok){alert(jr.error||'Could not lock your numbers. Try again.');return;}
+
     holdId=jr.hold_id;
-    startHoldCountdown(3);
+    startHoldCountdown(3); // 3-minute timer
     await loadState();
     await renderStripeElements();
     stripeBox?.scrollIntoView({behavior:'smooth'});
   });
 
   payBtn.onclick=()=>withLoading(payBtn,confirmStripePayment);
+
   loadState();
 </script>
 </body>
