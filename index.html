@@ -161,7 +161,10 @@
       <div id="payment-status"></div>
     </div>
   </div>
-
+<!-- Persistent success message (stays until refresh) -->
+<div id="order-success" style="display:none;margin:12px auto 6px;max-width:900px;text-align:center;
+  font-weight:600;background:#063b2a;border:1px solid #0e7a58;color:#10b981;padding:10px 14px;border-radius:10px;">
+</div>
   <p id="summary" class="note"></p>
   <div id="board" class="grid">Loading numbers…</div>
 </main>
@@ -179,6 +182,7 @@
   const paymentElementDiv=document.getElementById('payment-element');
   const payBtn=document.getElementById('payBtn');
   const paymentStatus=document.getElementById('payment-status');
+  const orderSuccess = document.getElementById('order-success');
 
   let STATE=null;
   let selected=new Set();
@@ -239,11 +243,17 @@
     updateSummary();
   }
 
-  clearBtn.onclick=async()=>{
-    selected.clear();holdId=null;teardownStripe();
-    timerDiv.style.display='none';clearInterval(holdTimer);
-    await loadState();window.scrollTo({top:0,behavior:'smooth'});
-  };
+  clearBtn.onclick = async () => {
+  selected.clear(); holdId = null; teardownStripe();
+  timerDiv.style.display = 'none'; clearInterval(holdTimer);
+
+  // hide the persistent success message when starting over
+  orderSuccess.style.display = 'none';
+
+  await loadState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 
   async function withLoading(btn,task){
     btn.disabled=true;btn.classList.add('loading');
@@ -300,7 +310,9 @@
         const fin=await fetch(APP+'?path=stripe_finalize',{method:'POST',body:JSON.stringify({hold_id:holdId,payment_intent_id:paymentIntent.id})});
         const fj=await fin.json();
         if(!fj.ok){paymentStatus.textContent=fj.error||'Finalization failed.';return;}
-        alert('Payment successful — your numbers are confirmed. Thank you!');
+        // Persistent message under the Stripe box (stays until refresh)
+orderSuccess.textContent = '✅ Payment successful — your numbers are confirmed.';
+orderSuccess.style.display = 'block';
         holdId=null;selected.clear();teardownStripe();
         timerDiv.style.display='none';clearInterval(holdTimer);
         await loadState();window.scrollTo({top:0,behavior:'smooth'});
