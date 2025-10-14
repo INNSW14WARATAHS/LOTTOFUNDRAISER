@@ -182,6 +182,16 @@
 <script>
   const APP = "https://script.google.com/macros/s/AKfycbzae0S8RoYlnjTFn821vlUzfrpelU8MXXKI8DuKe5k41WBhlX7b0WRLsFSUmbJu_gyN2A/exec";
 
+  // Send JSON without triggering CORS preflight (Apps Script-friendly)
+async function postPlain(url, data) {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(data)
+  });
+}
+
+
   const board=document.getElementById('board');
   const lockBtn=document.getElementById('lockBtn');
   const clearBtn=document.getElementById('clearBtn');
@@ -338,9 +348,15 @@ paymentStatus.textContent='';
 
     if(paymentIntent&&paymentIntent.status==='succeeded'){
       try{
-        const fin=await fetch(APP+'?path=stripe_finalize',{method:'POST',body:JSON.stringify({hold_id:holdId,payment_intent_id:paymentIntent.id})});
-        const fj=await fin.json();
-        if(!fj.ok){paymentStatus.textContent=fj.error||'Finalization failed.';return;}
+        const fin = await postPlain(APP + '?path=stripe_finalize', {
+  hold_id: holdId,
+  payment_intent_id: paymentIntent.id
+});
+if (!fin.ok) { paymentStatus.textContent = `Finalize request failed (${fin.status})`; return; }
+
+const fj = await fin.json();
+if (!fj.ok) { paymentStatus.textContent = fj.error || 'Finalization failed.'; return; }
+
         // Persistent message under the Stripe box (stays until refresh)
 orderSuccess.textContent = '✅ Payment successful — your numbers are confirmed.';
 orderSuccess.style.display = 'block';
@@ -374,17 +390,9 @@ orderSuccess.style.display = 'block';
       if (!numbers.length)  throw new Error('Please select at least one number.');
       if (!name || !email)  throw new Error('Please enter your name and email.');
 
-      const res = await fetch(APP + '?path=reserve', {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, numbers })
-      });
-
-      if (!res.ok) throw new Error(`Reserve request failed (${res.status})`);
-      const jr = await res.json();
+  const res = await postPlain(APP + '?path=reserve', { name, email, phone, numbers });
+if (!res.ok) throw new Error(`Reserve request failed (${res.status})`);
+const jr = await res.json();
       if (!jr.ok) throw new Error(jr.error || 'Could not lock your numbers. Try again.');
 
       // Locked successfully
