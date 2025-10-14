@@ -167,7 +167,7 @@
 </main>
 
 <script>
-  const APP = "https://script.google.com/macros/s/AKfycbxvk30VpjX0Q2cFB74J9wXMUP6H0GJLLYZrOCr9cZZdvwNjvkC5CMcNxT3dmPBZz8qVtg/exec";
+  const APP = "https://script.google.com/macros/s/AKfycbyp0k-SNCe6Vi_t22Z4f7mW5QC1GwY0FtAfW_fnFDEyVrOXQTxcqudfq05PXW3ZzeU8Xg/exec";
 
   const board=document.getElementById('board');
   const lockBtn=document.getElementById('lockBtn');
@@ -326,7 +326,7 @@
     if(!jr.ok){alert(jr.error||'Could not lock your numbers. Try again.');return;}
 
     holdId=jr.hold_id;
-    startHoldCountdown(3); // 3-minute timer
+    startHoldCountdown(10); // 3-minute timer
     await loadState();
     await renderStripeElements();
     stripeBox?.scrollIntoView({behavior:'smooth'});
