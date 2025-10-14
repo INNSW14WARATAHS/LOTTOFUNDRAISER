@@ -256,12 +256,22 @@
   }
 
 clearBtn.onclick = async () => {
-  selected.clear(); holdId = null; teardownStripe();
-  timerDiv.style.display = 'none'; clearInterval(holdTimer);
+  selected.clear();
+  holdId = null;
+  teardownStripe();
+
+  timerDiv.style.display = 'none';
+  clearInterval(holdTimer);
+
+  // hide any messages/banners
   orderSuccess.style.display = 'none';
-  lockWarning.style.display = 'none';   // hide warning if it was showing
-  await loadState(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  lockWarning.style.display = 'none';
+  paymentStatus.textContent = '';
+
+  await loadState();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+
 
 
 
@@ -283,12 +293,13 @@ clearBtn.onclick = async () => {
       const r=await fetch(APP+'?path=stripe_intent',{method:'POST',body:JSON.stringify({hold_id:holdId})});
       const jr=await r.json();
 
-     if(!jr.ok){
+if(!jr.ok){
   stripeBox.style.display='block';
   paymentStatus.textContent=jr.error||'Could not start payment.';
   lockWarning.style.display='none';
   return;
 }
+
 
 
       clientSecret=jr.client_secret;
@@ -300,16 +311,18 @@ clearBtn.onclick = async () => {
       const paymentElement=elements.create('payment',{layout:'tabs'});
       paymentElement.mount('#payment-element');
 
-    stripeBox.style.display='block';
-lockWarning.style.display='none';   // hide warning as soon as Stripe is visible
+stripeBox.style.display='block';
+lockWarning.style.display='none';   // hide red warning when Stripe is visible
 payBtn.textContent=(jr.amount_cents&&jr.currency)?`Pay ${money(jr.amount_cents)} Now`:'Pay Now';
 paymentStatus.textContent='';
 
-    }catch(err){
-      console.error(err);
-      stripeBox.style.display='block';
-      paymentStatus.textContent='Network error starting payment.';
-    }
+
+} catch(err){
+  console.error(err);
+  stripeBox.style.display='block';
+  paymentStatus.textContent='Network error starting payment.';
+  lockWarning.style.display='none';
+}
   }
 
   async function confirmStripePayment(){
@@ -340,35 +353,55 @@ orderSuccess.style.display = 'block';
     paymentStatus.textContent='Please complete any additional authentication steps.';
   }
 
-  document.getElementById('lockBtn').onclick = () =>
+ document.getElementById('lockBtn').onclick = () =>
   withLoading(lockBtn, async () => {
-    if (holdId) { stripeBox?.scrollIntoView({behavior:'smooth'}); return; }
+    // If already holding, just jump to payment box
+    if (holdId) { stripeBox?.scrollIntoView({ behavior: 'smooth' }); return; }
 
     // show the red warning while we lock & prepare Stripe
     lockWarning.style.display = 'block';
+    lockWarning.style.borderColor = '#b91c1c';
+    lockWarning.style.background = '#4b1d1d';
+    lockWarning.style.color = '#fecaca';
+    lockWarning.innerHTML = '⚠️ <span style="color:#fff">DO NOT REFRESH YOUR BROWSER</span><br>Locking numbers may take up to 60 seconds — once numbers are successfully locked, please wait for the payment box to appear to complete your checkout.';
 
-    const name  = document.getElementById('name').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const numbers = [...selected];
+    try {
+      const name  = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const numbers = [...selected];
 
-    if (!numbers.length) { lockWarning.style.display='none'; return alert('Please select at least one number.'); }
-    if (!name || !email)  { lockWarning.style.display='none'; return alert('Please enter your name and email.'); }
+      if (!numbers.length)  throw new Error('Please select at least one number.');
+      if (!name || !email)  throw new Error('Please enter your name and email.');
 
-    const res = await fetch(APP+'?path=reserve', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ name, email, phone, numbers })
-    });
-    const jr = await res.json();
-    if (!jr.ok) { lockWarning.style.display='none'; return alert(jr.error || 'Could not lock your numbers. Try again.'); }
+      const res = await fetch(APP + '?path=reserve', {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, numbers })
+      });
 
-    holdId = jr.hold_id;
-    startHoldCountdown(10);
-    await loadState();
-    await renderStripeElements();     // we’ll hide the warning inside this when Stripe is ready
-    stripeBox?.scrollIntoView({behavior:'smooth'});
+      if (!res.ok) throw new Error(`Reserve request failed (${res.status})`);
+      const jr = await res.json();
+      if (!jr.ok) throw new Error(jr.error || 'Could not lock your numbers. Try again.');
+
+      // Locked successfully
+      holdId = jr.hold_id;
+      startHoldCountdown(10);
+      await loadState();
+
+      // Build Stripe UI; hide the warning when it appears
+      await renderStripeElements();
+      stripeBox?.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+      // Show the reason in the red box
+      lockWarning.style.display = 'block';
+      lockWarning.innerHTML = `❌ <span style="color:#fff">Could not lock your numbers.</span><br>${(err && err.message) || err}`;
+    }
   });
+
 
 
   payBtn.onclick=()=>withLoading(payBtn,confirmStripePayment);
